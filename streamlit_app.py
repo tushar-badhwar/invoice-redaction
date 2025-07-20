@@ -31,28 +31,6 @@ except ImportError as e:
     """)
     st.stop()
 
-# Download spaCy model if not available
-@st.cache_resource
-def download_spacy_model():
-    import subprocess
-    import sys
-    try:
-        import spacy
-        nlp = spacy.load("en_core_web_sm")
-        return True
-    except OSError:
-        st.info("Downloading spaCy language model... This may take a moment.")
-        try:
-            subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
-            return True
-        except subprocess.CalledProcessError:
-            return False
-
-# Ensure spaCy model is available
-if not download_spacy_model():
-    st.error("Failed to download spaCy model. Please check your internet connection.")
-    st.stop()
-
 # Import the invoice redaction functions (after cv2 is successfully imported)
 try:
     from invoice_redaction_clean import (
