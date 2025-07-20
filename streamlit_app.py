@@ -4,7 +4,28 @@ import os
 import io
 from PIL import Image
 import numpy as np
-import cv2
+
+# Fix for OpenCV headless import issues
+os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
+try:
+    import cv2
+except ImportError as e:
+    st.error(f"""
+    OpenCV import error: {e}
+    
+    Please install the required system dependencies:
+    ```bash
+    sudo apt-get update
+    sudo apt-get install libgl1-mesa-glx libglib2.0-0
+    ```
+    
+    Or try installing opencv-python-headless instead:
+    ```bash
+    pip uninstall opencv-python
+    pip install opencv-python-headless
+    ```
+    """)
+    st.stop()
 
 # Import the invoice redaction functions
 from invoice_redaction_clean import (

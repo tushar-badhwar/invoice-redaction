@@ -43,6 +43,8 @@ A web-based application for automatically detecting and redacting personally ide
    python -m spacy download en_core_web_sm
    ```
 
+**Note:** The app uses `opencv-python-headless` to avoid GUI dependency issues in server environments.
+
 ### Running the App
 
 ```bash
@@ -107,15 +109,25 @@ The tool intelligently preserves legitimate business information:
    python -m spacy download en_core_web_sm
    ```
 
-2. **PDF processing fails**
+2. **OpenCV ImportError: libGL.so.1 cannot open shared object**
+   ```bash
+   # Option 1: Install system dependencies
+   sudo apt-get install libgl1-mesa-glx libglib2.0-0
+   
+   # Option 2: Use headless OpenCV (recommended)
+   pip uninstall opencv-python
+   pip install opencv-python-headless
+   ```
+
+3. **PDF processing fails**
    - Try enabling "Force OCR for PDF" option
    - Ensure poppler-utils is installed
 
-3. **OCR not working**
+4. **OCR not working**
    - Verify Tesseract installation: `tesseract --version`
    - Check image quality and resolution
 
-4. **Poor detection accuracy**
+5. **Poor detection accuracy**
    - Use higher resolution images
    - Ensure text is clear and not skewed
    - Try different OCR configurations
