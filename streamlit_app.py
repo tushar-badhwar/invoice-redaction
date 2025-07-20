@@ -31,28 +31,50 @@ except ImportError as e:
     """)
     st.stop()
 
-# Import the invoice redaction functions (after cv2 is successfully imported)
-try:
-    from invoice_redaction_clean import (
-        process_invoice_universal,
-        process_invoice,
-        detect_file_type,
-        process_pdf_invoice,
-        extract_text_with_boxes,
-        detect_names,
-        detect_addresses,
-        detect_phone_numbers,
-        detect_bank_accounts,
-        detect_emails,
-        redact_image
-    )
-except ImportError as e:
-    st.error(f"""
-    Error importing invoice redaction functions: {e}
-    
-    This might be due to missing dependencies. Please ensure all requirements are installed.
-    """)
+# Import the invoice redaction functions with better error handling
+@st.cache_resource
+def import_redaction_functions():
+    try:
+        from invoice_redaction_clean import (
+            process_invoice_universal,
+            process_invoice,
+            detect_file_type,
+            process_pdf_invoice,
+            extract_text_with_boxes,
+            detect_names,
+            detect_addresses,
+            detect_phone_numbers,
+            detect_bank_accounts,
+            detect_emails,
+            redact_image
+        )
+        return {
+            'process_invoice_universal': process_invoice_universal,
+            'process_invoice': process_invoice,
+            'detect_file_type': detect_file_type,
+            'process_pdf_invoice': process_pdf_invoice,
+            'extract_text_with_boxes': extract_text_with_boxes,
+            'detect_names': detect_names,
+            'detect_addresses': detect_addresses,
+            'detect_phone_numbers': detect_phone_numbers,
+            'detect_bank_accounts': detect_bank_accounts,
+            'detect_emails': detect_emails,
+            'redact_image': redact_image
+        }
+    except Exception as e:
+        st.error(f"Error importing redaction functions: {e}")
+        return None
+
+# Try to import functions
+redaction_funcs = import_redaction_functions()
+if redaction_funcs is None:
+    st.error("Failed to load redaction functions. Please check the logs.")
     st.stop()
+
+# Extract functions from dictionary
+process_invoice = redaction_funcs['process_invoice']
+detect_file_type = redaction_funcs['detect_file_type']
+process_pdf_invoice = redaction_funcs['process_pdf_invoice']
 
 st.set_page_config(
     page_title="Invoice PII Redaction Tool",
@@ -111,9 +133,8 @@ def main():
     # Demo section
     st.sidebar.subheader("🎯 Try a Demo")
     
-    # Get available sample files
-    sample_files = [f for f in os.listdir('.') if f.startswith('test') and f.endswith('.png')]
-    sample_files.sort()
+    # Available sample files
+    sample_files = ['test1.png', 'test2.png', 'test3.png']
     
     if sample_files:
         demo_option = st.sidebar.selectbox(
