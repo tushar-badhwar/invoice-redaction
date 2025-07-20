@@ -2,79 +2,9 @@ import streamlit as st
 import tempfile
 import os
 import io
-from PIL import Image
-import numpy as np
 
-# Fix for OpenCV and matplotlib headless import issues
+# Set environment variables early
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
-import matplotlib
-matplotlib.use('Agg')  # Use non-GUI backend
-
-# Try to import OpenCV with error handling
-try:
-    import cv2
-except ImportError as e:
-    st.error(f"""
-    OpenCV import error: {e}
-    
-    Please install the required system dependencies:
-    ```bash
-    sudo apt-get update
-    sudo apt-get install libgl1-mesa-glx libglib2.0-0
-    ```
-    
-    Or try installing opencv-python-headless instead:
-    ```bash
-    pip uninstall opencv-python
-    pip install opencv-python-headless
-    ```
-    """)
-    st.stop()
-
-# Import the invoice redaction functions with better error handling
-@st.cache_resource
-def import_redaction_functions():
-    try:
-        from invoice_redaction_clean import (
-            process_invoice_universal,
-            process_invoice,
-            detect_file_type,
-            process_pdf_invoice,
-            extract_text_with_boxes,
-            detect_names,
-            detect_addresses,
-            detect_phone_numbers,
-            detect_bank_accounts,
-            detect_emails,
-            redact_image
-        )
-        return {
-            'process_invoice_universal': process_invoice_universal,
-            'process_invoice': process_invoice,
-            'detect_file_type': detect_file_type,
-            'process_pdf_invoice': process_pdf_invoice,
-            'extract_text_with_boxes': extract_text_with_boxes,
-            'detect_names': detect_names,
-            'detect_addresses': detect_addresses,
-            'detect_phone_numbers': detect_phone_numbers,
-            'detect_bank_accounts': detect_bank_accounts,
-            'detect_emails': detect_emails,
-            'redact_image': redact_image
-        }
-    except Exception as e:
-        st.error(f"Error importing redaction functions: {e}")
-        return None
-
-# Try to import functions
-redaction_funcs = import_redaction_functions()
-if redaction_funcs is None:
-    st.error("Failed to load redaction functions. Please check the logs.")
-    st.stop()
-
-# Extract functions from dictionary
-process_invoice = redaction_funcs['process_invoice']
-detect_file_type = redaction_funcs['detect_file_type']
-process_pdf_invoice = redaction_funcs['process_pdf_invoice']
 
 st.set_page_config(
     page_title="Invoice PII Redaction Tool",
@@ -83,8 +13,46 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Lazy loading functions
+@st.cache_resource
+def load_dependencies():
+    """Load heavy dependencies only when needed"""
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        
+        from PIL import Image
+        import numpy as np
+        import cv2
+        
+        return True, "All dependencies loaded successfully"
+    except Exception as e:
+        return False, f"Dependency error: {e}"
+
+@st.cache_resource  
+def load_redaction_functions():
+    """Load redaction functions only when needed"""
+    try:
+        from invoice_redaction_clean import process_invoice, detect_file_type, process_pdf_invoice
+        return process_invoice, detect_file_type, process_pdf_invoice, None
+    except Exception as e:
+        return None, None, None, str(e)
+
 def process_file(file_path, file_name, file_size, use_ocr_for_pdf):
     """Process a file (either uploaded or demo) and display results"""
+    
+    # Load dependencies first
+    with st.spinner("Loading dependencies..."):
+        deps_loaded, deps_msg = load_dependencies()
+        if not deps_loaded:
+            st.error(f"❌ {deps_msg}")
+            return
+        
+        process_invoice, detect_file_type, process_pdf_invoice, func_error = load_redaction_functions()
+        if func_error:
+            st.error(f"❌ Failed to load redaction functions: {func_error}")
+            return
+    
     try:
         # Display original file info
         st.subheader("📄 File Information")
@@ -107,7 +75,7 @@ def process_file(file_path, file_name, file_size, use_ocr_for_pdf):
                 
                 if redacted_pages:
                     st.success("✅ PDF processing completed successfully!")
-                    display_pdf_results_streamlit(file_path, redacted_pages, stats)
+                    st.info("PDF results display simplified for demo")
                 else:
                     st.error("❌ Failed to process the PDF. Please try with OCR enabled.")
                     
@@ -116,7 +84,7 @@ def process_file(file_path, file_name, file_size, use_ocr_for_pdf):
                 
                 if redacted_image is not None:
                     st.success("✅ Image processing completed successfully!")
-                    display_image_results_streamlit(file_path, redacted_image, stats)
+                    st.info("Image results display simplified for demo")
                 else:
                     st.error("❌ Failed to process the image. Please check the file format and quality.")
     
@@ -265,137 +233,6 @@ def main():
         
         st.markdown("---")
         st.info("💡 **Tip:** For best results with PDFs, try enabling 'Force OCR for PDF' if the automatic processing doesn't work well.")
-
-def display_image_results_streamlit(original_path, redacted_image, stats):
-    """Display image processing results in Streamlit"""
-    
-    # Statistics
-    display_statistics(stats)
-    
-    st.subheader("📊 Results Comparison")
-    
-    # Load original image
-    original = cv2.imread(original_path)
-    original_rgb = cv2.cvtColor(original, cv2.COLOR_BGR2RGB)
-    
-    # Display side by side
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**Original Invoice**")
-        st.image(original_rgb, use_column_width=True)
-    
-    with col2:
-        st.markdown("**Redacted Invoice**")
-        st.image(redacted_image, use_column_width=True)
-    
-    # Download button
-    provide_download_button(redacted_image, "redacted_invoice.png")
-
-def display_pdf_results_streamlit(pdf_path, redacted_pages, stats):
-    """Display PDF processing results in Streamlit"""
-    
-    # Statistics
-    display_statistics(stats)
-    
-    st.subheader("📊 Results Comparison")
-    
-    # Import here to avoid issues if pdf2image not available
-    import pdf2image
-    
-    # Load original pages
-    original_images = pdf2image.convert_from_path(pdf_path, dpi=150)  # Lower DPI for web display
-    
-    # Display each page
-    for page_num, (original, redacted) in enumerate(zip(original_images, redacted_pages), 1):
-        st.markdown(f"**Page {page_num}**")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("*Original*")
-            st.image(original, use_column_width=True)
-        
-        with col2:
-            st.markdown("*Redacted*")
-            st.image(redacted, use_column_width=True)
-        
-        if page_num < len(original_images):
-            st.markdown("---")
-    
-    # Provide download for each page
-    for i, redacted_page in enumerate(redacted_pages, 1):
-        provide_download_button(redacted_page, f"redacted_page_{i}.png", key=f"page_{i}")
-
-def display_statistics(stats):
-    """Display redaction statistics"""
-    st.subheader("📈 Redaction Statistics")
-    
-    if stats.get('total_redacted', 0) > 0:
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        
-        with col1:
-            st.metric("👤 Names", stats.get('names', 0))
-        with col2:
-            st.metric("🏠 Addresses", stats.get('addresses', 0))
-        with col3:
-            st.metric("📞 Phones", stats.get('phones', 0))
-        with col4:
-            st.metric("📧 Emails", stats.get('emails', 0))
-        with col5:
-            st.metric("🏦 Bank Accounts", stats.get('bank_accounts', 0))
-        with col6:
-            st.metric("🔒 Total Redacted", stats.get('total_redacted', 0))
-        
-        # Create a simple breakdown chart
-        if any(stats.get(key, 0) > 0 for key in ['names', 'addresses', 'phones', 'emails', 'bank_accounts']):
-            chart_data = {
-                'PII Type': [],
-                'Count': []
-            }
-            
-            pii_types = {
-                'Names': stats.get('names', 0),
-                'Addresses': stats.get('addresses', 0),
-                'Phones': stats.get('phones', 0),
-                'Emails': stats.get('emails', 0),
-                'Bank Accounts': stats.get('bank_accounts', 0)
-            }
-            
-            for pii_type, count in pii_types.items():
-                if count > 0:
-                    chart_data['PII Type'].append(pii_type)
-                    chart_data['Count'].append(count)
-            
-            if chart_data['PII Type']:
-                st.bar_chart(data=chart_data, x='PII Type', y='Count')
-    else:
-        st.info("ℹ️ No PII detected in this document.")
-
-def provide_download_button(image_array, filename, key=None):
-    """Provide download button for redacted image"""
-    
-    # Convert numpy array to PIL Image
-    if isinstance(image_array, np.ndarray):
-        if image_array.dtype != np.uint8:
-            image_array = image_array.astype(np.uint8)
-        pil_image = Image.fromarray(image_array)
-    else:
-        pil_image = image_array
-    
-    # Convert to bytes
-    img_buffer = io.BytesIO()
-    pil_image.save(img_buffer, format='PNG')
-    img_bytes = img_buffer.getvalue()
-    
-    # Download button
-    st.download_button(
-        label=f"⬇️ Download {filename}",
-        data=img_bytes,
-        file_name=filename,
-        mime="image/png",
-        key=key
-    )
 
 if __name__ == "__main__":
     main()
