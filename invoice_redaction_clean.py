@@ -1,12 +1,15 @@
 # Import required libraries
 import re
-import cv2
+import os
 import numpy as np
 import pytesseract
 import spacy
 import matplotlib.pyplot as plt
-import os
 from typing import List, Tuple, Dict, Any
+
+# Set environment variable for headless OpenCV
+os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
+import cv2
 
 # PDF processing libraries
 import pdf2image

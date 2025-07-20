@@ -5,8 +5,11 @@ import io
 from PIL import Image
 import numpy as np
 
-# Fix for OpenCV headless import issues
+# Fix for OpenCV and matplotlib headless import issues
 os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend
+
 try:
     import cv2
 except ImportError as e:
