@@ -10,6 +10,7 @@ os.environ['OPENCV_IO_ENABLE_OPENEXR'] = '0'
 import matplotlib
 matplotlib.use('Agg')  # Use non-GUI backend
 
+# Try to import OpenCV with error handling
 try:
     import cv2
 except ImportError as e:
@@ -30,20 +31,32 @@ except ImportError as e:
     """)
     st.stop()
 
-# Import the invoice redaction functions
-from invoice_redaction_clean import (
-    process_invoice_universal,
-    process_invoice,
-    detect_file_type,
-    process_pdf_invoice,
-    extract_text_with_boxes,
-    detect_names,
-    detect_addresses,
-    detect_phone_numbers,
-    detect_bank_accounts,
-    detect_emails,
-    redact_image
-)
+# Import the invoice redaction functions (after cv2 is successfully imported)
+try:
+    from invoice_redaction_clean import (
+        process_invoice_universal,
+        process_invoice,
+        detect_file_type,
+        process_pdf_invoice,
+        extract_text_with_boxes,
+        detect_names,
+        detect_addresses,
+        detect_phone_numbers,
+        detect_bank_accounts,
+        detect_emails,
+        redact_image
+    )
+except ImportError as e:
+    st.error(f"""
+    Error importing invoice redaction functions: {e}
+    
+    This might be due to missing dependencies. Please ensure all requirements are installed:
+    ```bash
+    pip install -r requirements.txt
+    python -m spacy download en_core_web_sm
+    ```
+    """)
+    st.stop()
 
 st.set_page_config(
     page_title="Invoice PII Redaction Tool",
